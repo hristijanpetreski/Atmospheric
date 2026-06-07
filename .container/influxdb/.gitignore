@@ -1,0 +1,2 @@
+# Ignore all InfluxDB data files
+data/

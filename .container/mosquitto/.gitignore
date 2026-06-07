@@ -1,0 +1,3 @@
+# Ignore broker runtime data and logs
+data/
+log/

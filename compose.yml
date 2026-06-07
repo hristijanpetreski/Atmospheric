@@ -1,0 +1,66 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: atmospheric-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./.container/mosquitto/config:/mosquitto/config
+      - ./.container/mosquitto/data:/mosquitto/data
+      - ./.container/mosquitto/log:/mosquitto/log
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:3-core
+    container_name: atmospheric-influxdb
+    ports:
+      - "8181:8181"
+    command:
+      - influxdb3
+      - serve
+      - --node-id=node0
+      - --object-store=file
+      - --data-dir=/var/lib/influxdb3/data
+    volumes:
+      - ./.container/influxdb/data:/var/lib/influxdb3/data
+    restart: unless-stopped
+
+  influxdb-ui:
+    image: influxdata/influxdb3-ui:latest
+    container_name: atmospheric-influxdb-ui
+    ports:
+      - "8888:8080"
+    environment:
+      - DEFAULT_INFLUX_SERVER=${INFLUX_SERVER}
+      - DEFAULT_API_TOKEN=${INFLUXDB_API_TOKEN}
+      - DEFAULT_INFLUX_DATABASE=${INFLUX_DATABASE}
+      - DEFAULT_SERVER_NAME=${INFLUX_SERVER_NAME}
+    volumes:
+      - ./.container/influxdb-ui/config:/app-root/config:ro
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+
+  telegraf:
+    image: telegraf:latest
+    container_name: atmospheric-telegraf
+    environment:
+      - INFLUX_TOKEN=${INFLUXDB_API_TOKEN}
+    volumes:
+      - ./.container/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - influxdb
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: atmospheric-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./.container/grafana/data:/var/lib/grafana
+      - ./.container/grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+    depends_on:
+      - influxdb

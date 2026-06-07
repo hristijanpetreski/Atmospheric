@@ -1,0 +1,2 @@
+# Ignore Grafana runtime data (sessions, db, plugins)
+data/

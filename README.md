@@ -24,7 +24,15 @@ graph LR
     D --> F[Predictive Model]
 ```
 
-### Status
+### Development
 
-🚧 Work in progress — university assignment project.
+#### Testing the ingestion pipeline
 
+With the stack running, you can seed the broker with randomly generated
+sensor readings to verify data flows through Telegraf into InfluxDB:
+
+```bash
+bash scripts/test/seed-mqtt.sh
+```
+
+Requires `mosquitto_pub` — see the script header for installation instructions.
