@@ -70,3 +70,17 @@ services:
     restart: unless-stopped
     depends_on:
       - influxdb
+
+  anomaly-detector:
+    build: ./anomaly_detector
+    container_name: atmospheric-anomaly-detector
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - WINDOW_SIZE=1000
+      - MIN_SAMPLES=30
+      - CONTAMINATION=0.05
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+

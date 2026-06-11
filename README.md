@@ -17,7 +17,8 @@ graph LR
     C --> D["InfluxDB 3 Core"]
     D --> E["Grafana"]
     D --> F["InfluxDB UI"]
-    D -. future .-> G["Prediction and anomaly detection"]
+    B --> G["Anomaly Detector<br>(Isolation Forest)"]
+    G -->|MQTT JSON| B
 ```
 
 The current data path is:
@@ -56,6 +57,7 @@ Docker Compose starts and connects all services automatically.
 | InfluxDB 3 Core | `http://localhost:8181` | Time-series database |
 | InfluxDB UI | `http://localhost:8888` | Database inspection |
 | Grafana | `http://localhost:3000` | Dashboards |
+| Anomaly Detector | - | Isolation Forest anomaly detection |
 
 Grafana starts with the provisioned **Atmospheric Environment** dashboard.
 The default local login is `admin` / `admin`; override it with
