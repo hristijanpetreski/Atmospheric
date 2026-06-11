@@ -36,3 +36,17 @@ bash scripts/test/seed-mqtt.sh
 ```
 
 Requires `mosquitto_pub` — see the script header for installation instructions.
+
+#### ESP firmware
+
+The MicroPython firmware under `esp/` includes BME280 sampling, MQTT
+publishing, WiFi recovery, and an offline setup web UI.
+
+```bash
+make test
+make build
+make deploy PORT=auto
+```
+
+See [esp/README.md](esp/README.md) for wiring, behavior, and deployment
+details.
