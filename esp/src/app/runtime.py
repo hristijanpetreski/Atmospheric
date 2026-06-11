@@ -1,13 +1,18 @@
 import gc
+import sys
 
 import machine
 
 from app import config as config_store
 from app.compat import sleep_ms, ticks_add, ticks_diff, ticks_ms
-from app.mqtt_client import SensorPublisher
 from app.network_manager import NetworkManager
-from app.sensor import EnvironmentalSensor
-from app.web_server import WebServer
+
+
+def log_heap(label):
+    try:
+        print(label, "heap:", gc.mem_free())
+    except AttributeError:
+        pass
 
 
 class Application:
@@ -15,37 +20,92 @@ class Application:
         self.config = config_store.load()
         self.network = NetworkManager()
         self.network.configure(self.config)
-        self.publisher = SensorPublisher(self.config) if self.config else None
+        self.publisher = None
+        self.publisher_error = None
         self.sensor = None
         self.last_reading = None
         self.sensor_error = None
         self.restart_at = None
         self.next_sample = ticks_ms()
         self.next_sensor_retry = ticks_ms()
+        self.next_publisher_retry = ticks_ms()
+        self.web = None
+
+    def setup(self):
+        gc.collect()
+        log_heap("Startup")
+        if self.config:
+            print("Connecting to WiFi:", self.config["wifi"]["ssid"])
+            if self.network.connect():
+                self._start_normal_mode()
+            else:
+                self.network.start_access_point()
+                self._start_web()
+        else:
+            print("No valid configuration found")
+            self.network.start_access_point()
+            self._start_web()
+
+    def _start_web(self):
+        if self.web:
+            return
+        gc.collect()
+        log_heap("Before web")
+        from app.web_server import WebServer
+
         self.web = WebServer(
             self.status,
             self.public_config,
             self.save_config,
             self.network.scan,
         )
-
-    def setup(self):
-        if self.config:
-            print("Connecting to WiFi:", self.config["wifi"]["ssid"])
-            if not self.network.connect():
-                self.network.start_access_point()
-        else:
-            print("No valid configuration found")
-            self.network.start_access_point()
-        self._start_sensor()
         self.web.start()
+        gc.collect()
+        log_heap("Web ready")
+
+    def _stop_web(self):
+        if not self.web:
+            return
+        self.web.close()
+        self.web = None
+        try:
+            del sys.modules["app.web_server"]
+        except KeyError:
+            pass
+        gc.collect()
+
+    def _start_normal_mode(self):
+        gc.collect()
+        log_heap("Before sensor")
+        self._start_sensor()
+        if self.sensor:
+            log_heap("Before MQTT")
+            self._start_publisher()
+        gc.collect()
+        log_heap("Normal mode")
+
+    def _start_publisher(self):
+        if self.publisher:
+            return
+        try:
+            from app.mqtt_client import SensorPublisher
+
+            self.publisher = SensorPublisher(self.config)
+            self.publisher_error = None
+        except MemoryError as error:
+            self.publisher = None
+            self.publisher_error = str(error)
+            self.next_publisher_retry = ticks_add(ticks_ms(), 30000)
+            print("MQTT unavailable:", error)
 
     def _start_sensor(self):
         try:
+            from app.sensor import EnvironmentalSensor
+
             self.sensor = EnvironmentalSensor()
             self.sensor_error = None
             print("BME280 ready")
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, MemoryError) as error:
             self.sensor = None
             self.sensor_error = str(error)
             self.next_sensor_retry = ticks_add(ticks_ms(), 30000)
@@ -70,7 +130,10 @@ class Application:
                 "ap_active": self.network.ap_active,
                 "ip": self.network.ip_address(),
             },
-            "mqtt": {"connected": bool(self.publisher and self.publisher.connected)},
+            "mqtt": {
+                "connected": bool(self.publisher and self.publisher.connected),
+                "error": self.publisher_error,
+            },
             "sensor": {
                 "ready": self.sensor is not None,
                 "error": self.sensor_error,
@@ -85,14 +148,32 @@ class Application:
         if not connected and self.publisher:
             self.publisher.disconnect()
 
-        self.web.poll()
+        if connected and self.web:
+            self._stop_web()
+        if self.network.ap_active and self.web is None:
+            self._start_web()
+        if self.web:
+            self.web.poll()
 
         if self.restart_at is not None and ticks_diff(now, self.restart_at) >= 0:
             print("Restarting with new configuration")
             sleep_ms(100)
             machine.reset()
 
-        if self.sensor is None and ticks_diff(now, self.next_sensor_retry) >= 0:
+        if (
+            connected
+            and self.sensor
+            and self.publisher is None
+            and self.web is None
+            and ticks_diff(now, self.next_publisher_retry) >= 0
+        ):
+            self._start_publisher()
+
+        if (
+            connected
+            and self.sensor is None
+            and ticks_diff(now, self.next_sensor_retry) >= 0
+        ):
             self._start_sensor()
 
         if self.config and self.sensor and ticks_diff(now, self.next_sample) >= 0:

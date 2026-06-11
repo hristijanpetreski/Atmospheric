@@ -74,6 +74,11 @@ class WebServer:
         self.socket = server
         print("Configuration server ready")
 
+    def close(self):
+        if self.socket:
+            self.socket.close()
+            self.socket = None
+
     def poll(self):
         if not self.socket:
             return
