@@ -35,10 +35,12 @@ class Application:
         gc.collect()
         log_heap("Startup")
         if self.config:
+            self._start_sensor()
             print("Connecting to WiFi:", self.config["wifi"]["ssid"])
             if self.network.connect():
                 self._start_normal_mode()
             else:
+                self._stop_sensor()
                 self.network.start_access_point()
                 self._start_web()
         else:
@@ -76,8 +78,6 @@ class Application:
 
     def _start_normal_mode(self):
         gc.collect()
-        log_heap("Before sensor")
-        self._start_sensor()
         if self.sensor:
             log_heap("Before MQTT")
             self._start_publisher()
@@ -100,6 +100,8 @@ class Application:
 
     def _start_sensor(self):
         try:
+            gc.collect()
+            log_heap("Before sensor")
             from app.sensor import EnvironmentalSensor
 
             self.sensor = EnvironmentalSensor()
@@ -110,6 +112,15 @@ class Application:
             self.sensor_error = str(error)
             self.next_sensor_retry = ticks_add(ticks_ms(), 30000)
             print("Sensor unavailable:", error)
+
+    def _stop_sensor(self):
+        self.sensor = None
+        for module in ("app.sensor", "bme280"):
+            try:
+                del sys.modules[module]
+            except KeyError:
+                pass
+        gc.collect()
 
     def public_config(self):
         return config_store.public(self.config)

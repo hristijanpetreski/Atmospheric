@@ -48,6 +48,7 @@ Other useful commands:
 ```bash
 make repl PORT=auto
 make tree PORT=auto
+make info PORT=auto
 make reset PORT=auto
 make clean
 ```
