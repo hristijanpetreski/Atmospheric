@@ -77,11 +77,13 @@ class NetworkManager:
             password += "setup"
         self.access_point.active(True)
         try:
-            self.access_point.config(essid=ssid, password=password, authmode=3)
-        except (OSError, TypeError):
             self.access_point.config(ssid=ssid, key=password, security=3)
+            configured_ssid = self.access_point.config("ssid")
+        except (OSError, TypeError, ValueError):
+            self.access_point.config(essid=ssid, password=password, authmode=3)
+            configured_ssid = self.access_point.config("essid")
         self.ap_active = True
-        print("Setup AP:", ssid)
+        print("Setup AP:", configured_ssid)
         print("Setup password:", password)
         print("Open http://%s" % self.access_point.ifconfig()[0])
 

@@ -43,7 +43,9 @@ await writeFile(
 await cp(path.join(espDir, "src", "boot.py"), path.join(buildDir, "boot.py"));
 await cp(path.join(espDir, "src", "main.py"), path.join(buildDir, "main.py"));
 const sourceFilter = (source) =>
-  !source.includes("__pycache__") && !source.endsWith(".pyc");
+  !source.includes("__pycache__") &&
+  !source.endsWith(".pyc") &&
+  path.basename(source) !== ".DS_Store";
 await cp(path.join(espDir, "src", "app"), path.join(buildDir, "app"), {
   recursive: true,
   filter: sourceFilter,
