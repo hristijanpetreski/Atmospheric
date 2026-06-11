@@ -273,6 +273,80 @@ button {
     border-bottom: 1px solid currentColor;
 }
 
+.text-button:disabled {
+    color: var(--muted);
+    cursor: wait;
+}
+
+.network-results {
+    margin-top: 16px;
+    border: 1px solid #465e52;
+    background: #09130f;
+}
+
+.network-results-heading,
+.network-result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.network-results-heading {
+    padding: 9px 11px;
+    color: var(--muted);
+    border-bottom: 1px solid #33483e;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.network-results-heading small {
+    color: var(--signal);
+    font:
+        700 11px/1 "Courier New",
+        monospace;
+}
+
+.network-result {
+    min-width: 0;
+    padding: 9px 11px;
+    border-bottom: 1px solid #24372f;
+}
+
+.network-result:last-child {
+    border-bottom: 0;
+}
+
+.network-result > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font:
+        13px/1.2 "Courier New",
+        monospace;
+}
+
+.select-network {
+    flex: 0 0 auto;
+    border: 1px solid var(--signal);
+    padding: 5px 8px;
+    color: var(--signal);
+    background: transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.select-network:hover,
+.select-network:focus {
+    color: var(--dark);
+    background: var(--signal);
+}
+
 .action-row {
     grid-column: 1 / -1;
     padding-top: 8px;

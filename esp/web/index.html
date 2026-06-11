@@ -53,7 +53,7 @@
                             id="scan-button"
                             type="button"
                         >
-                            Scan nearby
+                            Scan
                         </button>
                     </div>
                     <label>
@@ -68,6 +68,18 @@
                         />
                         <datalist id="wifi-networks"></datalist>
                     </label>
+                    <div
+                        class="network-results"
+                        id="network-results"
+                        aria-live="polite"
+                        hidden
+                    >
+                        <div class="network-results-heading">
+                            <span>Networks found</span>
+                            <small id="network-count"></small>
+                        </div>
+                        <div id="network-list"></div>
+                    </div>
                     <label>
                         <span>WiFi password</span>
                         <input

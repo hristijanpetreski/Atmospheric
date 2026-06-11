@@ -50,23 +50,61 @@ async function refreshStatus() {
   }
 }
 
-$("scan-button").addEventListener("click", async (event) => {
-  event.currentTarget.disabled = true;
-  event.currentTarget.textContent = "Scanning...";
+function renderNetworks(networks) {
+  const results = $("network-results");
+  const list = $("network-list");
+  const datalist = $("wifi-networks");
+  list.textContent = "";
+  datalist.textContent = "";
+  $("network-count").textContent = String(networks.length);
+
+  networks.forEach((ssid) => {
+    const option = document.createElement("option");
+    option.value = ssid;
+    datalist.appendChild(option);
+
+    const row = document.createElement("div");
+    row.className = "network-result";
+
+    const name = document.createElement("span");
+    name.textContent = ssid;
+    name.title = ssid;
+
+    const select = document.createElement("button");
+    select.type = "button";
+    select.className = "select-network";
+    select.textContent = "Select";
+    select.setAttribute("data-ssid", ssid);
+
+    row.appendChild(name);
+    row.appendChild(select);
+    list.appendChild(row);
+  });
+
+  results.hidden = false;
+}
+
+$("network-list").addEventListener("click", (event) => {
+  const button = event.target.closest(".select-network");
+  if (!button) return;
+  $("wifi-ssid").value = button.getAttribute("data-ssid");
+  $("wifi-password").focus();
+  setMessage("Selected " + button.getAttribute("data-ssid") + ".");
+});
+
+$("scan-button").addEventListener("click", async () => {
+  const button = $("scan-button");
+  button.disabled = true;
+  button.textContent = "Scanning...";
   try {
     const data = await request("/api/wifi");
-    $("wifi-networks").replaceChildren(
-      ...data.networks.map((ssid) =>
-        Object.assign(document.createElement("option"), { value: ssid }),
-      ),
-    );
-    setMessage(`${data.networks.length} networks found.`);
+    renderNetworks(data.networks);
+    setMessage(data.networks.length + " networks found.");
   } catch (error) {
     setMessage(error.message, "error");
-  } finally {
-    event.currentTarget.disabled = false;
-    event.currentTarget.textContent = "Scan nearby";
   }
+  button.disabled = false;
+  button.textContent = "Scan";
 });
 
 form.addEventListener("submit", async (event) => {
