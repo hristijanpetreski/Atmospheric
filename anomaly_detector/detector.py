@@ -226,7 +226,12 @@ def build_client(config: Config, detector: AnomalyDetector) -> mqtt.Client:
                 raise InvalidReading("payload must be a JSON object")
             device_id = get_device_id(message.topic)
             enriched = detector.process(device_id, payload)
-        except (UnicodeDecodeError, json.JSONDecodeError, InvalidReading, ValueError) as exc:
+        except (
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            InvalidReading,
+            ValueError,
+        ) as exc:
             print(f"Ignoring invalid reading on {message.topic}: {exc}", flush=True)
             return
 
