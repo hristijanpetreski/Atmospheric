@@ -1,8 +1,8 @@
 # Atmospheric MicroPython firmware
 
-The firmware connects an ESP8266 or ESP32 to WiFi, reads a BME280, and
-publishes JSON readings over MQTT. If WiFi configuration is missing or the
-connection cannot be restored, it exposes a setup access point and web UI.
+The firmware connects an ESP8266 or ESP32 to WiFi, reads a BMP280 or BME280,
+and publishes JSON readings over MQTT. If WiFi configuration is missing or
+the connection cannot be restored, it exposes a setup access point.
 
 ## Hardware defaults
 
@@ -11,7 +11,7 @@ connection cannot be restored, it exposes a setup access point and web UI.
 | ESP8266 | GPIO4 | GPIO5 |
 | ESP32 | GPIO21 | GPIO22 |
 
-The sensor adapter probes BME280 addresses `0x76` and `0x77`. Change
+The sensor adapter probes BMP280/BME280 addresses `0x76` and `0x77`. Change
 `app/sensor.py` if the board uses different pins.
 
 ## Device behavior
@@ -20,6 +20,8 @@ The sensor adapter probes BME280 addresses `0x76` and `0x77`. Change
 - The setup AP is named `Atmospheric-XXXX`; its password is printed over the
   serial console on boot.
 - The setup page is available at `http://192.168.4.1`.
+- After WiFi connects, the same page remains available at the station IP
+  printed in the serial log.
 - A successful station connection disables the setup AP.
 - The AP returns after WiFi has been unavailable for 60 seconds.
 - Pressure is converted from Pa to hPa before publishing.
@@ -29,6 +31,9 @@ The MQTT payload is:
 ```json
 {"temperature":22.41,"humidity":57.28,"pressure":1012.84}
 ```
+
+For a BMP280, which has no humidity sensor, the payload contains
+`"humidity":null`.
 
 ## Build and deploy
 

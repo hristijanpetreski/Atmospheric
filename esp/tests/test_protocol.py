@@ -21,6 +21,16 @@ class ProtocolTests(unittest.TestCase):
             {"temperature": 22.41, "humidity": 57.28, "pressure": 1012.84},
         )
 
+    def test_bmp280_payload_uses_null_humidity(self):
+        payload = json.loads(
+            encode_payload(
+                {"temperature": 22.41, "pressure": 1012.84, "humidity": None}
+            )
+        )
+        self.assertEqual(payload["temperature"], 22.41)
+        self.assertEqual(payload["pressure"], 1012.84)
+        self.assertIsNone(payload["humidity"])
+
     def test_http_request_parser(self):
         request = (
             b"POST /api/config?source=test HTTP/1.1\r\n"

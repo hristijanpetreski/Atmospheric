@@ -49,7 +49,10 @@ class NetworkManager:
         wifi = self.config["wifi"]
         self.station.active(True)
         if self.station.isconnected():
+            self.disconnected_since = None
+            self.retry_delay = 2000
             self.stop_access_point()
+            print("WiFi connected:", self.station.ifconfig()[0])
             return True
         self.station.connect(wifi["ssid"], wifi["password"])
         started = ticks_ms()
@@ -58,6 +61,7 @@ class NetworkManager:
                 self.disconnected_since = None
                 self.retry_delay = 2000
                 self.stop_access_point()
+                print("WiFi connected:", self.station.ifconfig()[0])
                 return True
             sleep_ms(250)
         try:
@@ -95,13 +99,24 @@ class NetworkManager:
     def scan(self):
         self.station.active(True)
         results = []
+        was_connected = self.station.isconnected()
         try:
-            for item in self.station.scan():
+            if not was_connected:
+                try:
+                    self.station.disconnect()
+                except OSError:
+                    pass
+                sleep_ms(100)
+            scanned = self.station.scan()
+            for item in scanned:
                 ssid = item[0].decode("utf-8", "ignore")
                 if ssid and ssid not in results:
                     results.append(ssid)
-        except OSError:
-            pass
+        except OSError as error:
+            print("WiFi scan failed:", error)
+        if not was_connected and self.config:
+            self.next_retry = ticks_add(ticks_ms(), 1000)
+            self.retry_delay = 2000
         results.sort()
         return results[:20]
 

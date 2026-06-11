@@ -54,6 +54,9 @@ BME280_OSAMPLE_8 = 4
 BME280_REGISTER_CONTROL_HUM = 0xF2
 BME280_REGISTER_STATUS = 0xF3
 BME280_REGISTER_CONTROL = 0xF4
+REGISTER_CHIP_ID = 0xD0
+CHIP_ID_BMP280 = 0x58
+CHIP_ID_BME280 = 0x60
 
 MODE_SLEEP = const(0)
 MODE_FORCED = const(1)
@@ -73,9 +76,12 @@ class BME280:
             raise ValueError("I2C is required")
         self.address = address
         self.i2c = i2c
+        self.chip_id = self.i2c.readfrom_mem(self.address, REGISTER_CHIP_ID, 1)[0]
+        if self.chip_id not in (CHIP_ID_BMP280, CHIP_ID_BME280):
+            raise OSError("Unsupported sensor chip ID: 0x%02x" % self.chip_id)
+        self.has_humidity = self.chip_id == CHIP_ID_BME280
 
         dig_88_a1 = self.i2c.readfrom_mem(self.address, 0x88, 26)
-        dig_e1_e7 = self.i2c.readfrom_mem(self.address, 0xE1, 7)
 
         (
             self.dig_T1,
@@ -94,11 +100,17 @@ class BME280:
             self.dig_H1,
         ) = unpack("<HhhHhhhhhhhhBB", dig_88_a1)
 
-        self.dig_H2, self.dig_H3, self.dig_H4, self.dig_H5, self.dig_H6 = unpack(
-            "<hBbhb", dig_e1_e7
-        )
-        self.dig_H4 = (self.dig_H4 * 16) + (self.dig_H5 & 0xF)
-        self.dig_H5 //= 16
+        if self.has_humidity:
+            dig_e1_e7 = self.i2c.readfrom_mem(self.address, 0xE1, 7)
+            (
+                self.dig_H2,
+                self.dig_H3,
+                self.dig_H4,
+                self.dig_H5,
+                self.dig_H6,
+            ) = unpack("<hBbhb", dig_e1_e7)
+            self.dig_H4 = (self.dig_H4 * 16) + (self.dig_H5 & 0xF)
+            self.dig_H5 //= 16
 
         self._l1_barray = bytearray(1)
         self._l8_barray = bytearray(8)
@@ -109,8 +121,11 @@ class BME280:
         self.t_fine = 0
 
     def read_raw_data(self, result):
-        self._l1_barray[0] = self._mode_hum
-        self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL_HUM, self._l1_barray)
+        if self.has_humidity:
+            self._l1_barray[0] = self._mode_hum
+            self.i2c.writeto_mem(
+                self.address, BME280_REGISTER_CONTROL_HUM, self._l1_barray
+            )
         self._l1_barray[0] = self._mode_temp << 5 | self._mode_press << 2 | MODE_FORCED
         self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL, self._l1_barray)
 
@@ -130,7 +145,7 @@ class BME280:
         readout = self._l8_barray
         raw_press = ((readout[0] << 16) | (readout[1] << 8) | readout[2]) >> 4
         raw_temp = ((readout[3] << 16) | (readout[4] << 8) | readout[5]) >> 4
-        raw_hum = (readout[6] << 8) | readout[7]
+        raw_hum = (readout[6] << 8) | readout[7] if self.has_humidity else 0
 
         result[0] = raw_temp
         result[1] = raw_press
@@ -160,20 +175,25 @@ class BME280:
             pressure = p + (var1 + var2 + self.dig_P7) / 16.0
             pressure = max(30000, min(110000, pressure))
 
-        h = self.t_fine - 76800.0
-        h = (raw_hum - (self.dig_H4 * 64.0 + self.dig_H5 / 16384.0 * h)) * (
-            self.dig_H2
-            / 65536.0
-            * (
-                1.0
-                + self.dig_H6 / 67108864.0 * h * (1.0 + self.dig_H3 / 67108864.0 * h)
+        humidity = None
+        if self.has_humidity:
+            h = self.t_fine - 76800.0
+            h = (raw_hum - (self.dig_H4 * 64.0 + self.dig_H5 / 16384.0 * h)) * (
+                self.dig_H2
+                / 65536.0
+                * (
+                    1.0
+                    + self.dig_H6
+                    / 67108864.0
+                    * h
+                    * (1.0 + self.dig_H3 / 67108864.0 * h)
+                )
             )
-        )
-        humidity = h * (1.0 - self.dig_H1 * h / 524288.0)
-        if humidity < 0:
-            humidity = 0
-        if humidity > 100:
-            humidity = 100.0
+            humidity = h * (1.0 - self.dig_H1 * h / 524288.0)
+            if humidity < 0:
+                humidity = 0
+            if humidity > 100:
+                humidity = 100.0
 
         if result is not None:
             result[0] = temp

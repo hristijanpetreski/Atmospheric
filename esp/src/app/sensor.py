@@ -1,5 +1,4 @@
 import sys
-from array import array
 
 import machine
 from bme280 import BME280, BME280_OSAMPLE_2
@@ -22,16 +21,18 @@ class EnvironmentalSensor:
         addresses = self.i2c.scan()
         address = 0x76 if 0x76 in addresses else 0x77 if 0x77 in addresses else None
         if address is None:
-            raise OSError("BME280 not found at 0x76 or 0x77")
+            raise OSError("BMP280/BME280 not found at 0x76 or 0x77")
         self.device = BME280(mode=BME280_OSAMPLE_2, address=address, i2c=self.i2c)
-        self.buffer = array("f", [0.0, 0.0, 0.0])
+        self.buffer = [0.0, 0.0, None]
+        self.model = "BME280" if self.device.has_humidity else "BMP280"
 
     def read(self):
         temperature, pressure_pa, humidity = self.device.read_compensated_data(
             self.buffer
         )
-        return {
+        reading = {
             "temperature": round(temperature, 2),
-            "humidity": round(humidity, 2),
             "pressure": round(pressure_pa / 100, 2),
         }
+        reading["humidity"] = round(humidity, 2) if humidity is not None else None
+        return reading

@@ -40,7 +40,8 @@ async function refreshStatus() {
     const reading = status.sensor.reading;
     if (reading) {
       $("temperature").textContent = reading.temperature.toFixed(2);
-      $("humidity").textContent = reading.humidity.toFixed(2);
+      $("humidity").textContent =
+        reading.humidity == null ? "--" : reading.humidity.toFixed(2);
       $("pressure").textContent = reading.pressure.toFixed(2);
     }
   } catch {

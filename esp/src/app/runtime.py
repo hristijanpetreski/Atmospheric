@@ -39,6 +39,7 @@ class Application:
             print("Connecting to WiFi:", self.config["wifi"]["ssid"])
             if self.network.connect():
                 self._start_normal_mode()
+                self._start_web()
             else:
                 self._stop_sensor()
                 self.network.start_access_point()
@@ -106,7 +107,7 @@ class Application:
 
             self.sensor = EnvironmentalSensor()
             self.sensor_error = None
-            print("BME280 ready")
+            print(self.sensor.model, "ready")
         except (OSError, ValueError, MemoryError) as error:
             self.sensor = None
             self.sensor_error = str(error)
@@ -147,6 +148,7 @@ class Application:
             },
             "sensor": {
                 "ready": self.sensor is not None,
+                "model": self.sensor.model if self.sensor else None,
                 "error": self.sensor_error,
                 "reading": self.last_reading,
             },
@@ -159,9 +161,7 @@ class Application:
         if not connected and self.publisher:
             self.publisher.disconnect()
 
-        if connected and self.web:
-            self._stop_web()
-        if self.network.ap_active and self.web is None:
+        if (connected or self.network.ap_active) and self.web is None:
             self._start_web()
         if self.web:
             self.web.poll()
@@ -175,7 +175,6 @@ class Application:
             connected
             and self.sensor
             and self.publisher is None
-            and self.web is None
             and ticks_diff(now, self.next_publisher_retry) >= 0
         ):
             self._start_publisher()
