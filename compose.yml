@@ -76,11 +76,10 @@ services:
     container_name: atmospheric-anomaly-detector
     environment:
       - MQTT_HOST=mosquitto
-      - MQTT_PORT=1883
-      - WINDOW_SIZE=1000
-      - MIN_SAMPLES=30
-      - CONTAMINATION=0.05
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - WINDOW_SIZE=${WINDOW_SIZE:-1000}
+      - MIN_SAMPLES=${MIN_SAMPLES:-30}
+      - CONTAMINATION=${CONTAMINATION:-0.05}
     restart: unless-stopped
     depends_on:
       - mosquitto
-
