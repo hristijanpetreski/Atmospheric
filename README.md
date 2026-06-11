@@ -28,8 +28,10 @@ The current data path is:
 3. Mosquitto routes the MQTT message to Telegraf.
 4. Telegraf writes the reading to the InfluxDB `atmospheric` database as the
    `environment` measurement.
-5. Grafana displays current values and historical trends on the automatically
-   provisioned dashboard.
+5. The anomaly detector scores each device independently and publishes enriched
+   readings to `atmospheric/anomalies/{device_id}`.
+6. Telegraf stores those readings as the `anomalies` measurement, and Grafana
+   displays the sensor history, anomaly state, and anomaly score.
 
 ## Prerequisites
 
@@ -130,6 +132,48 @@ MQTT_TOPIC=atmospheric/sensors/test \
 bash scripts/test/seed-mqtt.sh
 ```
 
+## Test The Anomaly Detector
+
+Install the locked detector dependencies and run its unit tests:
+
+```bash
+cd anomaly_detector
+uv sync --frozen
+uv run --frozen python -m unittest -v
+cd ..
+```
+
+For an end-to-end test, start or rebuild the stack so the current detector code
+and configuration are running:
+
+```bash
+docker compose up -d --build
+uv run --project anomaly_detector --frozen \
+  python scripts/test/test-anomaly-detector.py
+```
+
+The script creates a unique test device, publishes 30 normal readings to warm
+up its model, injects an extreme reading, and exits successfully only if the
+detector publishes `model_ready=1`, `is_anomaly=1`, and a positive
+`anomaly_score`. If `MIN_SAMPLES` is overridden, pass the same value with
+`--samples`, for example:
+
+```bash
+uv run --project anomaly_detector --frozen \
+  python scripts/test/test-anomaly-detector.py --samples 50
+```
+
+Inspect the complete path while the test runs:
+
+```bash
+docker compose logs -f anomaly-detector telegraf
+```
+
+In Grafana at `http://localhost:3000`, select the generated
+`detector-test-*` device and use a recent time range. The anomaly timeline and
+score panels exclude warm-up readings and preserve anomaly spikes within each
+display interval.
+
 ## Device Development
 
 Run firmware tests and build the deployment artifact:
@@ -163,4 +207,5 @@ Other device commands are documented in
   network.
 - Grafana automatically provisions the InfluxDB datasource and Atmospheric
   dashboard.
-- Prediction and anomaly detection are future work.
+- Per-device anomaly detection combines Isolation Forest with a robust
+  per-sensor spike check and is integrated into Telegraf and Grafana.

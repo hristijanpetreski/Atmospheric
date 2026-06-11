@@ -80,6 +80,8 @@ services:
       - WINDOW_SIZE=${WINDOW_SIZE:-1000}
       - MIN_SAMPLES=${MIN_SAMPLES:-30}
       - CONTAMINATION=${CONTAMINATION:-0.05}
+      - ROBUST_Z_THRESHOLD=${ROBUST_Z_THRESHOLD:-6.0}
+      - FEATURE_FIELDS=${FEATURE_FIELDS:-temperature,humidity,pressure}
     restart: unless-stopped
     depends_on:
       - mosquitto

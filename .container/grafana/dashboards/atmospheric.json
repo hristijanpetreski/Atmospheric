@@ -625,7 +625,7 @@
             "type": "influxdb",
             "uid": "atmospheric-influxdb"
           },
-          "query": "SELECT mean(\"is_anomaly\") FROM \"anomalies\" WHERE (\"topic\" =~ /^$device$/) AND $timeFilter GROUP BY time($__interval), \"topic\" fill(null)",
+          "query": "SELECT max(\"is_anomaly\") FROM \"anomalies\" WHERE (\"topic\" =~ /^$device$/) AND (\"model_ready\" = 1) AND $timeFilter GROUP BY time($__interval), \"topic\" fill(null)",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
@@ -721,7 +721,7 @@
             "type": "influxdb",
             "uid": "atmospheric-influxdb"
           },
-          "query": "SELECT mean(\"anomaly_score\") FROM \"anomalies\" WHERE (\"topic\" =~ /^$device$/) AND $timeFilter GROUP BY time($__interval), \"topic\" fill(null)",
+          "query": "SELECT max(\"anomaly_score\") FROM \"anomalies\" WHERE (\"topic\" =~ /^$device$/) AND (\"model_ready\" = 1) AND $timeFilter GROUP BY time($__interval), \"topic\" fill(null)",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"

@@ -1,98 +1,135 @@
+import json
+import os
 import unittest
-from collections import deque
-import pandas as pd
-from sklearn.ensemble import IsolationForest
-import numpy as np
+from unittest.mock import patch
 
-# We import key logic or mock it to test detector's behavior
-class TestAnomalyDetector(unittest.TestCase):
+from detector import (
+    AnomalyDetector,
+    Config,
+    DeviceDetector,
+    InvalidReading,
+    get_device_id,
+)
+
+
+class TestConfig(unittest.TestCase):
+    def test_rejects_invalid_window(self):
+        with patch.dict(
+            os.environ,
+            {"MIN_SAMPLES": "30", "WINDOW_SIZE": "20"},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "WINDOW_SIZE"):
+                Config.from_env()
+
+    def test_rejects_invalid_contamination(self):
+        with patch.dict(os.environ, {"CONTAMINATION": "0.75"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "CONTAMINATION"):
+                Config.from_env()
+
+    def test_rejects_invalid_robust_threshold(self):
+        with patch.dict(os.environ, {"ROBUST_Z_THRESHOLD": "0"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "ROBUST_Z_THRESHOLD"):
+                Config.from_env()
+
+
+class TestDeviceDetector(unittest.TestCase):
     def setUp(self):
-        self.min_samples = 30
-        self.contamination = 0.05
-        self.window_size = 100
-        
-        # Mock buffer
-        self.buffer = deque(maxlen=self.window_size)
+        self.config = Config(window_size=50, min_samples=30, contamination=0.05)
+        self.detector = DeviceDetector(self.config)
 
-    def test_warmup_phase(self):
-        # Seed some initial normal data below the threshold
-        for i in range(10):
-            self.buffer.append({
-                "temperature": 20.0 + (i % 3),
-                "humidity": 50.0 + (i % 5),
-                "pressure": 1012.0
-            })
-            
-        df = pd.DataFrame(list(self.buffer))
-        current_keys = ["temperature", "humidity", "pressure"]
-        df_features = df[current_keys].dropna()
-        
-        # Verify that we don't have enough samples to fit the model
-        self.assertLess(len(df_features), self.min_samples)
-        
-    def test_anomaly_detection_logic(self):
-        # 1. Add normal samples to satisfy min_samples (30)
-        # Generate 30 normal readings with small fluctuations
-        np.random.seed(42)
-        temps = np.random.normal(22.0, 0.5, 35)
-        hums = np.random.normal(55.0, 1.0, 35)
-        pressures = np.random.normal(1013.0, 0.2, 35)
-        
-        for t, h, p in zip(temps, hums, pressures):
-            self.buffer.append({
-                "temperature": float(t),
-                "humidity": float(h),
-                "pressure": float(p)
-            })
-            
-        df = pd.DataFrame(list(self.buffer))
-        current_keys = ["temperature", "humidity", "pressure"]
-        df_features = df[current_keys].dropna()
-        
-        self.assertEqual(len(df_features), 35)
-        
-        # 2. Fit the Isolation Forest model
-        clf = IsolationForest(contamination=self.contamination, random_state=42)
-        clf.fit(df_features)
-        
-        # Predict on a normal current reading (the last one appended)
-        current_row = df_features.iloc[[-1]]
-        pred = clf.predict(current_row)[0]
-        score = clf.decision_function(current_row)[0]
-        
-        # Normal reading should not be an anomaly (pred should be 1)
-        self.assertEqual(pred, 1)
-        is_anomaly = 1 if pred == -1 else 0
-        self.assertEqual(is_anomaly, 0)
-        
-        # 3. Append an anomaly (extreme temperature spike)
-        self.buffer.append({
-            "temperature": 85.0, # Massive spike
-            "humidity": 55.0,
-            "pressure": 1013.0
-        })
-        
-        # Re-fetch DataFrame and re-fit
-        df_anomaly = pd.DataFrame(list(self.buffer))
-        df_anomaly_features = df_anomaly[current_keys].dropna()
-        
-        # Fit model on the new dataset
-        clf_anomaly = IsolationForest(contamination=self.contamination, random_state=42)
-        clf_anomaly.fit(df_anomaly_features)
-        
-        # Predict on the new current reading (the anomaly we just added)
-        current_anomaly_row = df_anomaly_features.iloc[[-1]]
-        pred_anomaly = clf_anomaly.predict(current_anomaly_row)[0]
-        score_anomaly = clf_anomaly.decision_function(current_anomaly_row)[0]
-        
-        # Outlier reading should be flagged as anomaly (pred should be -1)
-        self.assertEqual(pred_anomaly, -1)
-        is_anomaly_detected = 1 if pred_anomaly == -1 else 0
-        self.assertEqual(is_anomaly_detected, 1)
-        
-        # Anomaly score should be significantly higher (more positive after inversion) than normal score
-        # Remember score_anomaly (decision_function) is negative for anomalies and positive for normal
-        self.assertLess(score_anomaly, score)
+    @staticmethod
+    def normal_reading(index):
+        offset = ((index % 7) - 3) / 10
+        return {
+            "temperature": 22.0 + offset,
+            "humidity": 55.0 + offset * 2,
+            "pressure": 1013.0 + offset / 2,
+        }
+
+    def test_warmup_and_extreme_outlier(self):
+        for index in range(self.config.min_samples):
+            result = self.detector.process(self.normal_reading(index))
+            self.assertEqual(result.model_ready, 0)
+            self.assertEqual(result.is_anomaly, 0)
+
+        result = self.detector.process(
+            {"temperature": 85.0, "humidity": 5.0, "pressure": 940.0}
+        )
+
+        self.assertEqual(result.model_ready, 1)
+        self.assertEqual(result.is_anomaly, 1)
+        self.assertGreater(result.anomaly_score, 0)
+        self.assertEqual(result.model_samples, 31)
+
+    def test_constant_sensor_detects_a_changed_value(self):
+        detector = DeviceDetector(
+            Config(window_size=10, min_samples=3, robust_z_threshold=6.0)
+        )
+        for _ in range(3):
+            detector.process({"temperature": 22.0})
+
+        result = detector.process({"temperature": 23.0})
+
+        self.assertEqual(result.is_anomaly, 1)
+        self.assertGreater(result.anomaly_score, 0)
+
+    def test_bmp280_null_humidity_uses_available_sensor_fields(self):
+        result = self.detector.process(
+            {"temperature": 22.0, "humidity": None, "pressure": 1013.0}
+        )
+
+        self.assertEqual(self.detector.feature_names, ("temperature", "pressure"))
+        self.assertEqual(result.model_ready, 0)
+
+    def test_feature_schema_stays_stable(self):
+        self.detector.process(
+            {"temperature": 22.0, "humidity": 55.0, "pressure": 1013.0}
+        )
+
+        with self.assertRaisesRegex(InvalidReading, "humidity"):
+            self.detector.process(
+                {"temperature": 22.0, "humidity": None, "pressure": 1013.0}
+            )
+
+    def test_ignores_numeric_metadata(self):
+        self.detector.process(
+            {
+                "temperature": 22.0,
+                "humidity": 55.0,
+                "pressure": 1013.0,
+                "timestamp": 1781200000,
+                "battery_mv": 3900,
+            }
+        )
+
+        self.assertEqual(
+            self.detector.feature_names, ("temperature", "humidity", "pressure")
+        )
+
+
+class TestAnomalyDetector(unittest.TestCase):
+    def test_keeps_device_histories_separate(self):
+        detector = AnomalyDetector(Config(window_size=10, min_samples=2))
+
+        first = detector.process("indoor", {"temperature": 20.0})
+        second = detector.process("outdoor", {"temperature": 5.0})
+
+        self.assertEqual(first["model_samples"], 1)
+        self.assertEqual(second["model_samples"], 1)
+        self.assertEqual(set(detector.devices), {"indoor", "outdoor"})
+
+    def test_enriched_payload_is_json_serializable(self):
+        detector = AnomalyDetector(Config(window_size=10, min_samples=2))
+        enriched = detector.process("test", {"temperature": 20.0})
+
+        json.dumps(enriched)
+
+    def test_device_id_comes_from_last_topic_segment(self):
+        self.assertEqual(get_device_id("atmospheric/sensors/lab"), "lab")
+        with self.assertRaises(ValueError):
+            get_device_id("atmospheric/sensors/")
+
 
 if __name__ == "__main__":
     unittest.main()
