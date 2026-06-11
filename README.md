@@ -27,10 +27,8 @@ The current data path is:
 3. Mosquitto routes the MQTT message to Telegraf.
 4. Telegraf writes the reading to the InfluxDB `atmospheric` database as the
    `environment` measurement.
-5. Grafana can query InfluxDB to display the data.
-
-Grafana is included in the infrastructure, but its dashboard has not been
-added yet.
+5. Grafana displays current values and historical trends on the automatically
+   provisioned dashboard.
 
 ## Prerequisites
 
@@ -58,6 +56,10 @@ Docker Compose starts and connects all services automatically.
 | InfluxDB 3 Core | `http://localhost:8181` | Time-series database |
 | InfluxDB UI | `http://localhost:8888` | Database inspection |
 | Grafana | `http://localhost:3000` | Dashboards |
+
+Grafana starts with the provisioned **Atmospheric Environment** dashboard.
+The default local login is `admin` / `admin`; override it with
+`GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`.
 
 Inspect the running services:
 
@@ -157,5 +159,6 @@ Other device commands are documented in
   implemented.
 - The configuration web UI works in setup AP mode and on the normal WiFi
   network.
-- Grafana runs as part of the stack; dashboard provisioning is planned.
+- Grafana automatically provisions the InfluxDB datasource and Atmospheric
+  dashboard.
 - Prediction and anomaly detection are future work.

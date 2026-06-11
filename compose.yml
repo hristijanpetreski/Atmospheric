@@ -31,10 +31,10 @@ services:
     ports:
       - "8888:8080"
     environment:
-      - DEFAULT_INFLUX_SERVER=${INFLUX_SERVER}
-      - DEFAULT_API_TOKEN=${INFLUXDB_API_TOKEN}
-      - DEFAULT_INFLUX_DATABASE=${INFLUX_DATABASE}
-      - DEFAULT_SERVER_NAME=${INFLUX_SERVER_NAME}
+      - DEFAULT_INFLUX_SERVER=${INFLUX_SERVER:-http://influxdb:8181}
+      - DEFAULT_API_TOKEN=${INFLUXDB_API_TOKEN:-atmospheric-local-token}
+      - DEFAULT_INFLUX_DATABASE=${INFLUX_DATABASE:-atmospheric}
+      - DEFAULT_SERVER_NAME=${INFLUX_SERVER_NAME:-Atmospheric (Local)}
     volumes:
       - ./.container/influxdb-ui/config:/app-root/config:ro
     restart: unless-stopped
@@ -45,7 +45,7 @@ services:
     image: telegraf:latest
     container_name: atmospheric-telegraf
     environment:
-      - INFLUX_TOKEN=${INFLUXDB_API_TOKEN}
+      - INFLUX_TOKEN=${INFLUXDB_API_TOKEN:-atmospheric-local-token}
     volumes:
       - ./.container/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     restart: unless-stopped
@@ -58,9 +58,15 @@ services:
     container_name: atmospheric-grafana
     ports:
       - "3000:3000"
+    environment:
+      - INFLUXDB_API_TOKEN=${INFLUXDB_API_TOKEN:-atmospheric-local-token}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/atmospheric.json
     volumes:
       - ./.container/grafana/data:/var/lib/grafana
-      - ./.container/grafana/provisioning:/etc/grafana/provisioning
+      - ./.container/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./.container/grafana/dashboards:/var/lib/grafana/dashboards:ro
     restart: unless-stopped
     depends_on:
       - influxdb

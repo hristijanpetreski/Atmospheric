@@ -1,0 +1,19 @@
+apiVersion: 1
+
+prune: true
+
+datasources:
+  - name: Atmospheric InfluxDB
+    uid: atmospheric-influxdb
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8181
+    isDefault: true
+    editable: false
+    jsonData:
+      version: InfluxQL
+      dbName: atmospheric
+      httpMode: POST
+      httpHeaderName1: Authorization
+    secureJsonData:
+      httpHeaderValue1: Token $INFLUXDB_API_TOKEN
