@@ -1,52 +1,161 @@
 # Atmospheric
 
-Atmospheric is an end-to-end IoT system for continuous environmental monitoring — measuring temperature, humidity, and atmospheric pressure from physical sensors and surfacing that data through a real-time dashboard.
-The system is built around a full data pipeline: sensors capture readings at the edge, transmit them over a lightweight messaging protocol, persist them in a time-series store, and render them as live, queryable visualizations. A predictive layer sits on top, capable of forecasting near-future environmental shifts and flagging anomalies as they emerge.
+Atmospheric is an end-to-end environmental monitoring system. A
+MicroPython-powered ESP device reads a BMP280 or BME280 sensor, publishes
+measurements over MQTT, and feeds them through Telegraf into InfluxDB for
+storage and visualization.
 
-### What it does
+The repository contains both the local infrastructure and the microcontroller
+firmware, including a browser-based device setup interface.
 
-Continuously samples temperature, humidity, and pressure from a physical sensor
-Transmits readings over a pub/sub messaging layer in real time
-Persists all measurements in a time-series database optimized for sensor data
-Visualizes historical and live readings through an interactive dashboard
-Detects anomalies and predicts short-term environmental trends using a lightweight ML model
-
-### Architecture
-
-Atmospheric follows a layered IoT architecture:
+## Architecture
 
 ```mermaid
 graph LR
-    A[Edge Device] --> B[Message Broker]
-    B --> C[Ingestion]
-    C --> D[Time-Series Store]
-    D --> E[Dashboard]
-    D --> F[Predictive Model]
+    A["ESP32 / ESP8266<br>BMP280 or BME280"] -->|MQTT JSON| B["Mosquitto"]
+    B --> C["Telegraf"]
+    C --> D["InfluxDB 3 Core"]
+    D --> E["Grafana"]
+    D --> F["InfluxDB UI"]
+    D -. future .-> G["Prediction and anomaly detection"]
 ```
 
-### Development
+The current data path is:
 
-#### Testing the ingestion pipeline
+1. The ESP reads temperature, pressure, and humidity when supported.
+2. It publishes JSON to `atmospheric/sensors/{device_id}`.
+3. Mosquitto routes the MQTT message to Telegraf.
+4. Telegraf writes the reading to the InfluxDB `atmospheric` database as the
+   `environment` measurement.
+5. Grafana can query InfluxDB to display the data.
 
-With the stack running, you can seed the broker with randomly generated
-sensor readings to verify data flows through Telegraf into InfluxDB:
+Grafana is included in the infrastructure, but its dashboard has not been
+added yet.
+
+## Prerequisites
+
+- Docker with Docker Compose
+- An ESP32 running MicroPython
+- A BMP280 or BME280 sensor
+- `mise`, or equivalent installations of Bun, Python, and `uv`
+
+The versions used by the repository are defined in
+[`mise.toml`](mise.toml).
+
+## Start The Infrastructure
+
+Start the complete local stack:
+
+```bash
+docker compose up -d
+```
+
+Docker Compose starts and connects all services automatically.
+
+| Service | Address | Purpose |
+| --- | --- | --- |
+| Mosquitto | `mqtt://localhost:1883` | MQTT broker |
+| InfluxDB 3 Core | `http://localhost:8181` | Time-series database |
+| InfluxDB UI | `http://localhost:8888` | Database inspection |
+| Grafana | `http://localhost:3000` | Dashboards |
+
+Inspect the running services:
+
+```bash
+docker compose ps
+docker compose logs -f
+```
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Persistent service data is stored under `.container/`.
+
+## Deploy The Device
+
+Build and upload the complete firmware folder:
+
+```bash
+make deploy PORT=auto
+```
+
+Monitor startup logs and open the MicroPython REPL:
+
+```bash
+make repl PORT=auto
+```
+
+Inside the REPL:
+
+- `Ctrl+D` performs a soft reboot and reruns `main.py`.
+- `Ctrl+C` interrupts the application.
+- `Ctrl+]` exits `mpremote`.
+
+The firmware prints the setup access-point credentials or the assigned station
+IP address. After configuration, the web interface remains available at the
+station IP.
+
+See [`esp/README.md`](esp/README.md) for wiring, provisioning, MQTT payloads,
+device behavior, and troubleshooting.
+
+## Test The Data Pipeline
+
+With the infrastructure running, publish generated readings through the same
+MQTT topic and payload format used by the device:
 
 ```bash
 bash scripts/test/seed-mqtt.sh
 ```
 
-Requires `mosquitto_pub` — see the script header for installation instructions.
+Optional arguments control the number of messages and delay:
 
-#### ESP firmware
+```bash
+bash scripts/test/seed-mqtt.sh 50 1
+```
 
-The MicroPython firmware under `esp/` includes BME280 sampling, MQTT
-publishing, WiFi recovery, and an offline setup web UI.
+The script requires `mosquitto_pub`. Its host, port, and topic can be
+overridden:
+
+```bash
+MQTT_HOST=localhost \
+MQTT_PORT=1883 \
+MQTT_TOPIC=atmospheric/sensors/test \
+bash scripts/test/seed-mqtt.sh
+```
+
+## Device Development
+
+Run firmware tests and build the deployment artifact:
 
 ```bash
 make test
 make build
-make deploy PORT=auto
 ```
 
-See [esp/README.md](esp/README.md) for wiring, behavior, and deployment
-details.
+Other device commands are documented in
+[`esp/README.md`](esp/README.md#development-commands).
+
+## Repository Layout
+
+```text
+.
+├── .container/          Service configuration and persistent data
+├── esp/                 MicroPython firmware and setup web UI
+├── scripts/test/        MQTT pipeline test utilities
+├── compose.yml          Local infrastructure
+├── Makefile             Firmware build and deployment commands
+└── mise.toml            Development tool versions
+```
+
+## Current Status
+
+- MQTT broker, ingestion, and InfluxDB persistence are configured.
+- ESP provisioning, WiFi recovery, sensor readings, and MQTT publishing are
+  implemented.
+- The configuration web UI works in setup AP mode and on the normal WiFi
+  network.
+- Grafana runs as part of the stack; dashboard provisioning is planned.
+- Prediction and anomaly detection are future work.
