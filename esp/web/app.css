@@ -404,6 +404,16 @@ button {
     .mqtt-panel {
         grid-row: auto;
     }
+    .reading-strip {
+        grid-template-columns: 1fr;
+    }
+    .reading-strip div {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+    }
+    .reading-strip div:last-child {
+        border-bottom: 0;
+    }
     .reading-strip strong {
         font-size: 21px;
     }
@@ -419,7 +429,25 @@ button {
     }
 }
 
-@media (max-width: 430px) {
+@media (max-width: 560px) {
+    main {
+        width: min(100% - 32px, 390px);
+    }
+    h1 {
+        font-size: 44px;
+    }
+    .panel-heading,
+    .panel-heading > div {
+        align-items: flex-start;
+    }
+    .panel-heading {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .host-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
     .credentials-row {
         grid-template-columns: 1fr;
         gap: 0;

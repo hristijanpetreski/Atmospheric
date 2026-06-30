@@ -8,6 +8,23 @@ storage and visualization.
 The repository contains both the local infrastructure and the microcontroller
 firmware, including a browser-based device setup interface.
 
+## Preview
+
+The ESP setup console gives the device a local browser UI for WiFi, MQTT, and
+sampling configuration.
+
+![ESP setup console desktop preview](assets/previews/esp-web-desktop.png)
+
+![ESP setup console compact preview](assets/previews/esp-web-mobile.png)
+
+The provisioned Grafana dashboard visualizes live readings, sensor history, and
+anomaly detection output from the local pipeline.
+
+![Grafana Atmospheric Environment dashboard preview](assets/previews/grafana-environment-dashboard.png)
+
+Additional screenshots, including Grafana dashboard previews, belong in
+[`assets/previews`](assets/previews/).
+
 ## Architecture
 
 ```mermaid
@@ -191,6 +208,7 @@ Other device commands are documented in
 ```text
 .
 ├── .container/          Service configuration and persistent data
+├── assets/              Preview images and project media
 ├── esp/                 MicroPython firmware and setup web UI
 ├── scripts/test/        MQTT pipeline test utilities
 ├── compose.yml          Local infrastructure
